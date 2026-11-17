@@ -25,6 +25,8 @@ uv run uvicorn app.main:app --reload
 uv run python -m pytest
 ```
 
+PR을 열거나 `main`에 push하면 GitHub Actions가 같은 명령으로 테스트를 실행합니다. 저장소의 `.gitattributes`는 Windows와 WSL 어느 쪽에서 내려받아도 파일 줄바꿈을 LF로 맞춥니다.
+
 ## 방 하나의 좌석 현황 조회
 
 서버를 실행한 뒤 `http://127.0.0.1:8000/api/v1/rooms/IT4-101`을 열면 제1실습실의 좌석 배치와 요약을 볼 수 있습니다. 이 방은 프론트엔드 연동을 위한 고정 예시입니다. 좌석 상태, 관측 시각, 장치 연결 여부까지 모두 예시 값입니다.
