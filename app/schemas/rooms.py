@@ -1,15 +1,13 @@
 from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict
+from pydantic import AwareDatetime, BaseModel
 
-from app.models.rooms import SeatStatus
+from app.models.rooms import SeatReason, SeatStatus
 
 CongestionLevel = Literal["LOW", "MODERATE", "HIGH"]
 
 
 class SeatLayoutResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     x: int
     y: int
     width: int
@@ -17,11 +15,10 @@ class SeatLayoutResponse(BaseModel):
 
 
 class SeatResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     seat_id: str
     label: str
     status: SeatStatus
+    reason: SeatReason | None
     status_since: AwareDatetime
     last_observed_at: AwareDatetime | None
     has_outlet: bool
