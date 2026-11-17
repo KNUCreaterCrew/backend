@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 
+from app.routers import health, rooms
+
 app = FastAPI(title="ZeroFrame Backend")
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+app.include_router(health.router)
+app.include_router(rooms.router)
