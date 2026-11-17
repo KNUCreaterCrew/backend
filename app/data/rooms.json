@@ -1,0 +1,38 @@
+{
+  "rooms": [
+    {
+      "room_id": "IT4-101",
+      "room_name": "제1실습실 (예시)",
+      "seats": [
+        {
+          "seat_id": "A-01",
+          "label": "A1",
+          "has_outlet": true,
+          "is_window": true,
+          "layout": { "x": 0, "y": 0, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "A-02",
+          "label": "A2",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 80, "y": 0, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "B-01",
+          "label": "B1",
+          "has_outlet": true,
+          "is_window": true,
+          "layout": { "x": 0, "y": 64, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "B-02",
+          "label": "B2",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 80, "y": 64, "width": 64, "height": 48 }
+        }
+      ]
+    }
+  ]
+}

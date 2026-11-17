@@ -1,24 +1,38 @@
 from collections.abc import Iterable
+from datetime import datetime, timezone
 from pathlib import Path
 
-from app.models.rooms import Room
+from pydantic import BaseModel
 
-EXAMPLE_ROOM_PATH = Path(__file__).resolve().parents[1] / "data" / "example-room.json"
+from app.models.rooms import RoomConfig, RoomState
+
+ROOMS_CONFIG_PATH = Path(__file__).resolve().parents[1] / "data" / "rooms.json"
+
+
+class RoomsFile(BaseModel):
+    """방 배치 설정 파일의 형식."""
+
+    rooms: tuple[RoomConfig, ...]
 
 
 class RoomRepository:
-    """서버가 실행되는 동안 방 상태를 메모리에 보관한다."""
+    """설정 파일의 배치로 방을 만들고, 서버가 실행되는 동안 상태를 메모리에 보관한다."""
 
-    def __init__(self, rooms: Iterable[Room]) -> None:
-        self._rooms = {room.room_id: room for room in rooms}
+    def __init__(self, configs: Iterable[RoomConfig], *, started_at: datetime) -> None:
+        self._rooms: dict[str, RoomState] = {}
+        for config in configs:
+            if config.room_id in self._rooms:
+                raise ValueError(f"방 ID가 중복됐습니다: {config.room_id}")
+            self._rooms[config.room_id] = RoomState.unobserved(config, started_at)
 
     @classmethod
-    def from_json_file(cls, path: Path) -> "RoomRepository":
-        return cls([Room.model_validate_json(path.read_bytes())])
+    def from_config_file(cls, path: Path, *, started_at: datetime) -> "RoomRepository":
+        rooms_file = RoomsFile.model_validate_json(path.read_bytes())
+        return cls(rooms_file.rooms, started_at=started_at)
 
-    def find(self, room_id: str) -> Room | None:
+    def find(self, room_id: str) -> RoomState | None:
         return self._rooms.get(room_id)
 
 
-def load_example_rooms() -> RoomRepository:
-    return RoomRepository.from_json_file(EXAMPLE_ROOM_PATH)
+def load_rooms() -> RoomRepository:
+    return RoomRepository.from_config_file(ROOMS_CONFIG_PATH, started_at=datetime.now(timezone.utc))
