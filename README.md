@@ -37,14 +37,16 @@ A2는 사용 중이고 B1에는 짐이 있습니다. A1만 이용 가능하므�
 
 ### 요청을 따라 코드 읽기
 
-`app/main.py`는 FastAPI 앱을 만들고 라우터를 등록합니다. 방 조회 요청 한 건은 아래 순서로 처리됩니다.
+`app/main.py`의 `create_app()`이 FastAPI 앱을 만들고 라우터를 등록합니다. 앱이 시작될 때(lifespan) [예시 데이터](app/data/example-room.json)를 읽어 방 저장소를 만들고 `app.state`에 둡니다. 방 조회 요청 한 건은 아래 순서로 처리됩니다.
 
 | 순서 | 코드 | 맡은 일 |
 | --- | --- | --- |
-| 1 | [라우터](app/routers/rooms.py) | URL에서 방 ID를 받아 서비스를 호출합니다. 방을 찾지 못하면 HTTP 404로 응답합니다. |
-| 2 | [서비스](app/services/rooms.py) → [저장소](app/repositories/rooms.py) | 서비스가 방 ID로 조회하면 저장소가 해당 방의 좌석 목록을 돌려줍니다. 현재 저장소는 시작할 때 [예시 데이터](app/data/example-room.json)를 읽습니다. |
+| 1 | [라우터](app/routers/rooms.py) | URL에서 방 ID를 받고, [의존성](app/dependencies.py)으로 저장소를 주입받아 서비스를 호출합니다. 방을 찾지 못하면 HTTP 404로 응답합니다. |
+| 2 | [서비스](app/services/rooms.py) → [저장소](app/repositories/rooms.py) | 서비스가 방 ID로 조회하면 저장소가 메모리에 보관한 방 상태([내부 모델](app/models/rooms.py))를 돌려줍니다. |
 | 3 | [서비스](app/services/rooms.py) | 읽어 온 좌석 목록에서 `EMPTY`와 `UNKNOWN`을 따로 세고 빈자리 비율로 혼잡도를 계산합니다. 목록과 집계를 한 응답에 담습니다. |
-| 4 | [스키마](app/schemas/rooms.py) | `RoomSnapshot`은 응답의 필드와 타입을 정의합니다. FastAPI가 이 형식으로 JSON을 반환하고 `/docs`에 응답 구조를 표시합니다. |
+| 4 | [응답 스키마](app/schemas/rooms.py) | `RoomSnapshot`은 응답의 필드와 타입을 정의합니다. 내부 모델과 분리돼 있어 저장 방식이 바뀌어도 응답 형식은 유지됩니다. FastAPI가 이 형식으로 JSON을 반환하고 `/docs`에 응답 구조를 표시합니다. |
+
+엔드포인트는 `async def`로 작성합니다. 방 상태는 프로세스 메모리에 있으므로 uvicorn은 워커 1개로 실행합니다. 테스트는 `create_app()`으로 매번 새 앱과 새 저장소를 띄우며, 다른 방 데이터를 넣은 저장소를 주입할 수도 있습니다.
 
 집계 기준을 바꿀 때는 서비스를, 데이터를 읽는 방식을 바꿀 때는 저장소를 살펴보면 됩니다. [공통 연동 명세](https://github.com/KNUCreaterCrew/docs/blob/main/INTERFACES.md)
 
