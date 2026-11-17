@@ -1,13 +1,16 @@
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import create_app
+from app.models.rooms import Room, Seat, SeatLayout, SeatStatus
+from app.repositories.rooms import RoomRepository
 from app.services.rooms import congestion_level
 
 
-def test_room_snapshot_matches_the_four_example_seats():
-    with TestClient(app) as client:
-        response = client.get("/api/v1/rooms/IT4-101")
+def test_room_snapshot_matches_the_four_example_seats(client):
+    response = client.get("/api/v1/rooms/IT4-101")
 
     assert response.status_code == 200
     room = response.json()
@@ -29,11 +32,34 @@ def test_room_snapshot_matches_the_four_example_seats():
     assert seats["B-02"]["last_observed_at"] is None
 
 
-def test_unregistered_room_returns_404():
-    with TestClient(app) as client:
-        response = client.get("/api/v1/rooms/unregistered")
+def test_unregistered_room_returns_404(client):
+    response = client.get("/api/v1/rooms/unregistered")
 
     assert response.status_code == 404
+
+
+def test_app_reads_rooms_from_the_injected_repository():
+    seat = Seat(
+        seat_id="A-01",
+        label="A1",
+        status=SeatStatus.OCCUPIED,
+        status_since=datetime.fromisoformat("2026-11-24T10:15:29+09:00"),
+        last_observed_at=datetime.fromisoformat("2026-11-24T10:15:29+09:00"),
+        has_outlet=True,
+        is_window=True,
+        layout=SeatLayout(x=120, y=80, width=64, height=48),
+    )
+    room = Room(room_id="TEST-1", room_name="테스트실", edge_online=True, seats=(seat,))
+
+    with TestClient(create_app(lambda: RoomRepository([room]))) as client:
+        injected = client.get("/api/v1/rooms/TEST-1")
+        example = client.get("/api/v1/rooms/IT4-101")
+
+    assert injected.status_code == 200
+    assert injected.json()["total_seats"] == 1
+    assert injected.json()["available_seats"] == 0
+    assert injected.json()["congestion_level"] == "HIGH"
+    assert example.status_code == 404
 
 
 @pytest.mark.parametrize(
