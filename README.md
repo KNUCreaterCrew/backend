@@ -2,6 +2,29 @@
 
 ZeroFrame은 경북대학교 컴퓨터학부 학생이 과방이나 실습실에 가기 전에 빈자리를 확인하는 서비스입니다. 이 저장소는 **실습실 장치가 확인한 좌석 상태를 학생의 모바일 좌석도에 전달하는 FastAPI 서버**를 위한 공간입니다.
 
+## 로컬에서 실행하기
+
+개발 환경은 Python 3.13과 uv를 사용합니다. uv가 필요한 경우 [공식 설치 안내](https://docs.astral.sh/uv/getting-started/installation/)를 참고하세요.
+
+```sh
+git clone https://github.com/KNUCreaterCrew/backend.git
+cd backend
+uv sync --locked
+uv run uvicorn app.main:app --reload
+```
+
+`uv sync --locked`는 저장소의 `uv.lock`에 기록된 버전으로 가상환경을 구성합니다. 서버가 켜지면 브라우저에서 `http://127.0.0.1:8000/health`를 열어 HTTP 200과 다음 응답을 확인할 수 있습니다.
+
+```json
+{"status": "ok"}
+```
+
+같은 폴더에서 아래 명령을 실행하면 상태 확인 API의 응답 코드와 본문을 테스트합니다.
+
+```sh
+uv run python -m pytest
+```
+
 ## 학생이 좌석도를 열면
 
 | 상황 | 백엔드가 맡을 일 |
