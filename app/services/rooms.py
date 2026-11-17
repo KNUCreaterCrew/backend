@@ -1,5 +1,6 @@
-from app.repositories.rooms import find_room
-from app.schemas.rooms import CongestionLevel, RoomSnapshot, SeatStatus
+from app.models.rooms import SeatStatus
+from app.repositories.rooms import RoomRepository
+from app.schemas.rooms import CongestionLevel, RoomSnapshot, SeatResponse
 
 
 def congestion_level(available_seats: int, total_seats: int) -> CongestionLevel:
@@ -11,8 +12,8 @@ def congestion_level(available_seats: int, total_seats: int) -> CongestionLevel:
     return "HIGH"
 
 
-def get_room_snapshot(room_id: str) -> RoomSnapshot | None:
-    room = find_room(room_id)
+def get_room_snapshot(rooms: RoomRepository, room_id: str) -> RoomSnapshot | None:
+    room = rooms.find(room_id)
     if room is None:
         return None
 
@@ -22,10 +23,10 @@ def get_room_snapshot(room_id: str) -> RoomSnapshot | None:
     return RoomSnapshot(
         room_id=room.room_id,
         room_name=room.room_name,
-        edge_online=room.edge_online,
-        seats=room.seats,
         total_seats=total,
         available_seats=available,
         unknown_seats=unknown,
         congestion_level=congestion_level(available, total),
+        edge_online=room.edge_online,
+        seats=[SeatResponse.model_validate(seat) for seat in room.seats],
     )

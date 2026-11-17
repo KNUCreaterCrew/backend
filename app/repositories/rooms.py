@@ -1,12 +1,24 @@
+from collections.abc import Iterable
 from pathlib import Path
 
-from app.schemas.rooms import Room
+from app.models.rooms import Room
 
-_example_path = Path(__file__).resolve().parents[1] / "data" / "example-room.json"
-_example_room = Room.model_validate_json(_example_path.read_bytes())
+EXAMPLE_ROOM_PATH = Path(__file__).resolve().parents[1] / "data" / "example-room.json"
 
 
-def find_room(room_id: str) -> Room | None:
-    if room_id == _example_room.room_id:
-        return _example_room
-    return None
+class RoomRepository:
+    """서버가 실행되는 동안 방 상태를 메모리에 보관한다."""
+
+    def __init__(self, rooms: Iterable[Room]) -> None:
+        self._rooms = {room.room_id: room for room in rooms}
+
+    @classmethod
+    def from_json_file(cls, path: Path) -> "RoomRepository":
+        return cls([Room.model_validate_json(path.read_bytes())])
+
+    def find(self, room_id: str) -> Room | None:
+        return self._rooms.get(room_id)
+
+
+def load_example_rooms() -> RoomRepository:
+    return RoomRepository.from_json_file(EXAMPLE_ROOM_PATH)
