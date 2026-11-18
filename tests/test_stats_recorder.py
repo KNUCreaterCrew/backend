@@ -13,11 +13,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.clock import SEOUL
 from app.main import create_app
 from app.repositories.rooms import ROOMS_CONFIG_PATH, RoomRepository
 from app.repositories.stats import RecordSource, RoomMinute, StatsStore, floor_minute
 from app.services.stats import record_every_minute, record_minute
-from demo.seed_stats import SEOUL, seed_rows
+from demo.seed_stats import seed_rows
 from tests.conftest import KST, FakeClock, settings_with_test_key
 from tests.test_rooms import apply_four_seat_example
 

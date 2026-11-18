@@ -10,7 +10,8 @@ from app.schemas.rooms import (
 )
 
 
-def congestion_level(available_seats: int, total_seats: int) -> CongestionLevel:
+def congestion_level(available_seats: float, total_seats: int) -> CongestionLevel:
+    """빈자리 비율로 혼잡도를 정한다. 통계에서는 반올림한 평균 빈자리(소수)를 넣는다."""
     available_ratio = available_seats / total_seats if total_seats else 0
     if available_ratio >= 0.60:
         return "LOW"

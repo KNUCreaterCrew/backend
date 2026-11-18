@@ -96,3 +96,21 @@ class StatsStore:
             )
             return conn.total_changes - before
 
+    def fetch(self, room_id: str, start: datetime, end: datetime) -> list[RoomMinute]:
+        """room_id의 start 이상 end 미만 기록을 시간순으로 읽는다.
+
+        recorded_at은 형식이 하나로 고정된 UTC 문자열이라 문자열 비교가 곧 시간 비교다.
+        """
+        with closing(self._connect()) as conn:
+            cursor = conn.execute(
+                "SELECT room_id, recorded_at, total_seats, available_seats, unknown_seats, edge_online, source"
+                " FROM room_minutes WHERE room_id = ? AND recorded_at >= ? AND recorded_at < ?"
+                " ORDER BY recorded_at",
+                (room_id, floor_minute(start).isoformat(), floor_minute(end).isoformat()),
+            )
+            return [
+                RoomMinute(room_id=row[0], recorded_at=datetime.fromisoformat(row[1]), total_seats=row[2],
+                           available_seats=row[3], unknown_seats=row[4], edge_online=bool(row[5]),
+                           source=RecordSource(row[6]))
+                for row in cursor
+            ]
