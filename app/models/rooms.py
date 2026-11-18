@@ -87,13 +87,14 @@ class SeatState(BaseModel):
 
 @dataclass(frozen=True)
 class SeatChange:
-    """보고를 반영하면서 status나 reason이 달라진 좌석 하나. 실시간 알림(#12)에 그대로 실린다."""
+    """보고를 반영하면서 status나 reason이 달라진 좌석 하나. SEAT_UPDATED의 changes 항목이 된다."""
 
     seat_id: str
     prev_status: SeatStatus
     curr_status: SeatStatus
     reason: SeatReason | None
     status_since: datetime
+    last_observed_at: datetime | None
 
 
 @dataclass

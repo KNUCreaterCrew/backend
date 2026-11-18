@@ -308,6 +308,10 @@ def test_invalid_report_is_rejected_without_partial_changes(client, rooms, body)
 # ── 방별 잠금 ──────────────────────────────────────────────────────
 
 
+async def publish_nowhere(room_id, events) -> None:
+    """알림을 보내지 않는 publish. 서비스만 따로 시험할 때 쓴다."""
+
+
 def test_report_waits_while_the_room_is_locked(rooms):
     """연결 감시(#13) 같은 다른 작업이 방을 잡고 있으면, 보고는 그 작업이 끝난 뒤에 반영된다."""
     body = StatusReport.model_validate(
@@ -317,7 +321,7 @@ def test_report_waits_while_the_room_is_locked(rooms):
 
     async def scenario() -> None:
         async with room_state.lock:
-            task = asyncio.create_task(apply_status_report(rooms, "IT4-101", body, received_at=STARTED_AT))
+            task = asyncio.create_task(apply_status_report(rooms, "IT4-101", body, received_at=STARTED_AT, publish=publish_nowhere))
             await asyncio.sleep(0)
             assert not task.done()
             assert room_state.seats["A-01"].status == SeatStatus.UNKNOWN

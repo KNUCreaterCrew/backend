@@ -1,6 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import NowDep, RoomRepositoryDep, verify_edge_api_key
+from app.dependencies import (
+    NowDep,
+    RoomConnectionsDep,
+    RoomRepositoryDep,
+    verify_edge_api_key,
+)
 from app.schemas.reports import StatusReport, StatusReportAck
 from app.services.reports import InvalidReport, RoomNotFound, apply_status_report
 
@@ -16,10 +21,10 @@ router = APIRouter(prefix="/api/v1/rooms", tags=["ingest"], dependencies=[Depend
     },
 )
 async def receive_status_report(
-    room_id: str, report: StatusReport, rooms: RoomRepositoryDep, now: NowDep
+    room_id: str, report: StatusReport, rooms: RoomRepositoryDep, connections: RoomConnectionsDep, now: NowDep
 ) -> StatusReportAck:
     try:
-        outcome = await apply_status_report(rooms, room_id, report, received_at=now)
+        outcome = await apply_status_report(rooms, room_id, report, received_at=now, publish=connections.broadcast)
     except RoomNotFound:
         raise HTTPException(status_code=404, detail="등록되지 않은 방입니다.") from None
     except InvalidReport as error:
