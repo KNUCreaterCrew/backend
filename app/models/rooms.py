@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+import asyncio
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Self
@@ -84,6 +85,17 @@ class SeatState(BaseModel):
         return cls(status=SeatStatus.UNKNOWN, reason=SeatReason.EDGE_OFFLINE, status_since=since)
 
 
+@dataclass(frozen=True)
+class SeatChange:
+    """보고를 반영하면서 status나 reason이 달라진 좌석 하나. 실시간 알림(#12)에 그대로 실린다."""
+
+    seat_id: str
+    prev_status: SeatStatus
+    curr_status: SeatStatus
+    reason: SeatReason | None
+    status_since: datetime
+
+
 @dataclass
 class RoomState:
     """방 하나의 배치와 최신 상태."""
@@ -91,6 +103,12 @@ class RoomState:
     config: RoomConfig
     edge_online: bool
     seats: dict[str, SeatState]
+    version: int = 0
+    """좌석·집계·장치 연결이 바뀔 때마다 1씩 커지는 번호. 웹이 이벤트 순서를 맞추는 기준이다."""
+    last_report_at: datetime | None = None
+    """마지막으로 인증된 보고를 받은 서버 시각. 장치 연결 판단(#13)의 기준이다."""
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False, compare=False)
+    """검증·비교·저장을 한 덩어리로 묶어, 같은 방의 다른 변경과 섞이지 않게 한다."""
 
     @classmethod
     def unobserved(cls, config: RoomConfig, since: datetime) -> Self:
