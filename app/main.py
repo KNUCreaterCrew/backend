@@ -9,7 +9,7 @@ from app.clock import Clock, utc_now
 from app.connections import RoomConnections
 from app.repositories.rooms import RoomRepository, load_rooms
 from app.repositories.stats import StatsStore
-from app.routers import health, realtime, reports, rooms
+from app.routers import health, realtime, reports, rooms, stats as stats_router
 from app.services import stats
 from app.services.edge import CHECK_INTERVAL_SECONDS, watch_edges
 from app.settings import Settings
@@ -54,6 +54,7 @@ def create_app(
     app.include_router(rooms.router)
     app.include_router(reports.router)
     app.include_router(realtime.router)
+    app.include_router(stats_router.router)
     return app
 
 

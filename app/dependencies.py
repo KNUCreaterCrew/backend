@@ -7,6 +7,7 @@ from starlette.requests import HTTPConnection
 
 from app.connections import RoomConnections
 from app.repositories.rooms import RoomRepository
+from app.repositories.stats import StatsStore
 
 # HTTPConnection은 HTTP 요청과 WebSocket 연결의 공통 부모다.
 # Request로 받으면 WebSocket 엔드포인트에서는 쓸 수 없으므로, 양쪽이 함께 쓰는 의존성은 이것으로 받는다.
@@ -18,6 +19,10 @@ def get_room_repository(connection: HTTPConnection) -> RoomRepository:
 
 def get_room_connections(connection: HTTPConnection) -> RoomConnections:
     return connection.app.state.connections
+
+
+def get_stats_store(request: Request) -> StatsStore:
+    return request.app.state.stats
 
 
 def get_now(request: Request) -> datetime:
@@ -36,3 +41,4 @@ async def verify_edge_api_key(
 RoomRepositoryDep = Annotated[RoomRepository, Depends(get_room_repository)]
 RoomConnectionsDep = Annotated[RoomConnections, Depends(get_room_connections)]
 NowDep = Annotated[datetime, Depends(get_now)]
+StatsStoreDep = Annotated[StatsStore, Depends(get_stats_store)]

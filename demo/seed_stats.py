@@ -17,14 +17,13 @@ import random
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
+from app.clock import SEOUL
 from app.models.rooms import RoomConfig
 from app.repositories.rooms import ROOMS_CONFIG_PATH, RoomsFile
 from app.repositories.stats import RecordSource, RoomMinute, StatsStore
 from app.settings import DEFAULT_STATS_DB_PATH
 
-SEOUL = ZoneInfo("Asia/Seoul")
 DEFAULT_DAYS = 28
 """요일·시간대별 평균의 기본 조회 기간(4주)을 채우는 양."""
 
