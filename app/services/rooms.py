@@ -5,6 +5,7 @@ from app.repositories.rooms import RoomRepository
 from app.schemas.rooms import (
     CongestionLevel,
     RoomSnapshot,
+    RoomSummaryResponse,
     SeatLayoutResponse,
     SeatResponse,
 )
@@ -52,21 +53,29 @@ def _seat_response(config: SeatConfig, state: SeatState) -> SeatResponse:
     )
 
 
+def _summary_fields(room: RoomState) -> dict:
+    """목록 항목과 방 조회 응답이 함께 쓰는 필드. 숫자는 summarize()로만 계산한다."""
+    summary = summarize(room)
+    return {
+        "room_id": room.config.room_id,
+        "room_name": room.config.room_name,
+        "total_seats": summary.total_seats,
+        "available_seats": summary.available_seats,
+        "unknown_seats": summary.unknown_seats,
+        "congestion_level": summary.congestion_level,
+        "edge_online": room.edge_online,
+    }
+
+
+def list_room_summaries(rooms: RoomRepository) -> list[RoomSummaryResponse]:
+    """등록된 방마다 요약을 낸다. 순서는 배치 설정 파일에 적힌 순서다."""
+    return [RoomSummaryResponse(**_summary_fields(room)) for room in rooms.all()]
+
+
 def get_room_snapshot(rooms: RoomRepository, room_id: str) -> RoomSnapshot | None:
     room = rooms.find(room_id)
     if room is None:
         return None
 
     seats = [_seat_response(seat, room.seats[seat.seat_id]) for seat in room.config.seats]
-    summary = summarize(room)
-    return RoomSnapshot(
-        room_id=room.config.room_id,
-        room_name=room.config.room_name,
-        total_seats=summary.total_seats,
-        available_seats=summary.available_seats,
-        unknown_seats=summary.unknown_seats,
-        congestion_level=summary.congestion_level,
-        edge_online=room.edge_online,
-        version=room.version,
-        seats=seats,
-    )
+    return RoomSnapshot(**_summary_fields(room), version=room.version, seats=seats)
