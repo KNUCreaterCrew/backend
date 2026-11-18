@@ -1,0 +1,18 @@
+# Render Blueprint: 대시보드의 New → Blueprint에서 이 저장소를 고르면 아래 설정으로 웹 서비스를 만든다.
+# 배포 순서와 무료 플랜의 제약은 README의 "Render에 배포하기"를 본다.
+services:
+  - type: web
+    name: zeroframe-backend
+    runtime: python          # 버전은 저장소의 .python-version(3.13)을 따른다
+    plan: free
+    region: singapore        # 한국과 가장 가까운 지역. 만든 뒤에는 바꿀 수 없다
+    # 운영 서버에는 테스트 도구(dev 그룹)를 설치하지 않는다.
+    buildCommand: uv sync --locked --no-dev
+    # 1) 무료 플랜은 재시작마다 디스크가 비므로 시연용 예시 기록을 먼저 넣는다(몇 번을 넣어도 같다).
+    # 2) 방 상태와 WebSocket 연결이 메모리에 있으므로 워커는 1개(uvicorn 기본값)로 띄운다.
+    # --no-sync: 시작할 때 dev 그룹을 다시 설치하지 않게 빌드한 환경을 그대로 쓴다.
+    startCommand: uv run --no-sync python -m demo.seed_stats && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: EDGE_API_KEY
+        sync: false          # 값은 파일에 적지 않고, 만들 때 대시보드에서 입력한다
