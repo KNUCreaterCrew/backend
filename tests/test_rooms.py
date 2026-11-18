@@ -8,7 +8,7 @@ from app.main import create_app
 from app.models.rooms import RoomConfig, SeatReason, SeatState, SeatStatus
 from app.repositories.rooms import RoomRepository
 from app.services.rooms import congestion_level
-from tests.conftest import KST, STARTED_AT
+from tests.conftest import KST, STARTED_AT, settings_with_test_key
 
 
 def at(hhmm: str) -> datetime:
@@ -33,6 +33,7 @@ def test_fresh_server_reports_every_seat_unknown(client):
     room = client.get("/api/v1/rooms/IT4-101").json()
 
     assert room["edge_online"] is False
+    assert room["version"] == 0
     assert room["total_seats"] == room["unknown_seats"] == 4
     assert room["available_seats"] == 0
     assert room["congestion_level"] == "HIGH"
@@ -120,7 +121,7 @@ def test_app_reads_rooms_from_the_injected_repository():
             "layout": {"x": 120, "y": 80, "width": 64, "height": 48}}
     rooms = RoomRepository([RoomConfig(room_id="TEST-1", room_name="테스트실", seats=[seat])], started_at=STARTED_AT)
 
-    with TestClient(create_app(lambda: rooms)) as client:
+    with TestClient(create_app(lambda: rooms, settings_with_test_key)) as client:
         injected = client.get("/api/v1/rooms/TEST-1")
         example = client.get("/api/v1/rooms/IT4-101")
 

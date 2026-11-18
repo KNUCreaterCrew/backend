@@ -34,4 +34,5 @@ class RoomSnapshot(BaseModel):
     unknown_seats: int
     congestion_level: CongestionLevel
     edge_online: bool
+    version: int
     seats: list[SeatResponse]

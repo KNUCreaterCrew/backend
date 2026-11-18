@@ -44,5 +44,6 @@ def get_room_snapshot(rooms: RoomRepository, room_id: str) -> RoomSnapshot | Non
         unknown_seats=unknown,
         congestion_level=congestion_level(available, total),
         edge_online=room.edge_online,
+        version=room.version,
         seats=seats,
     )
