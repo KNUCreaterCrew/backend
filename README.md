@@ -20,13 +20,43 @@ uv run uvicorn app.main:app --reload
 {"status": "ok"}
 ```
 
-같은 폴더에서 아래 명령을 실행하면 상태 확인, 방 조회, 혼잡도 집계, 장치 보고 반영, 실시간 알림, 혼잡도 기록·조회 테스트를 실행합니다. 테스트는 테스트용 키를 주입하므로 `.env`가 없어도 됩니다.
+같은 폴더에서 아래 명령을 실행하면 상태 확인, 방 목록과 방 조회, 혼잡도 집계, CORS, 장치 보고 반영, 실시간 알림, 혼잡도 기록과 조회 테스트를 실행합니다. 테스트는 테스트용 키를 주입하므로 `.env`가 없어도 됩니다.
 
 ```sh
 uv run python -m pytest
 ```
 
 PR을 열거나 `main`에 push하면 GitHub Actions가 같은 명령으로 테스트를 실행합니다. 저장소의 `.gitattributes`는 Windows와 WSL 어느 쪽에서 내려받아도 파일 줄바꿈을 LF로 맞춥니다.
+
+## 방 목록 조회
+
+학생이 첫 화면에서 갈 방을 고를 수 있도록, `GET /api/v1/rooms`는 등록된 방마다 요약을 돌려줍니다. 서버를 막 켰다면 `http://127.0.0.1:8000/api/v1/rooms`에서 아래 응답을 볼 수 있습니다.
+
+```json
+[
+  {
+    "room_id": "IT4-101",
+    "room_name": "제1실습실 (예시)",
+    "total_seats": 4,
+    "available_seats": 0,
+    "unknown_seats": 4,
+    "congestion_level": "HIGH",
+    "edge_online": false
+  }
+]
+```
+
+| 규칙 | 내용 |
+| --- | --- |
+| 필드 | 이름과 뜻이 방 조회 응답과 같습니다. 좌석 목록(`seats`)과 `version`은 넣지 않습니다. |
+| 숫자 | 방 조회와 같은 `summarize()`로 계산하므로, 같은 순간이면 목록과 방 조회의 숫자가 같습니다. |
+| 순서 | [배치 설정 파일](app/data/rooms.json)에 적힌 순서입니다. 빈자리 순 같은 정렬은 웹이 정합니다. |
+| 방이 없을 때 | 빈 배열 `[]`입니다. |
+| 장치가 끊긴 방 | `edge_online: false`이고, 전 좌석이 확인 불가라 `unknown_seats`가 전체 좌석 수와 같습니다. |
+
+**`version`을 넣지 않은 이유:** `version`은 WebSocket 이벤트를 방 조회 응답에 이어 붙일 때 쓰는 번호입니다. 목록 화면은 이벤트를 받지 않고 30초마다 다시 조회하므로 쓸 곳이 없습니다. 목록의 `version`으로 이벤트를 거르는 실수도 막습니다.
+
+**끝에 `/`를 붙이지 않습니다.** `/api/v1/rooms/`는 `/api/v1/rooms`로 307 리다이렉트됩니다. 배포 서버에서는 이 리다이렉트 주소가 `http://`로 나올 수 있어, https 페이지에서 따라가면 브라우저가 막습니다.
 
 ## 방 하나의 좌석 현황 조회
 
@@ -54,7 +84,7 @@ PR을 열거나 `main`에 push하면 GitHub Actions가 같은 명령으로 테�
 | 1 | [라우터](app/routers/rooms.py) | URL에서 방 ID를 받고, [의존성](app/dependencies.py)으로 저장소를 주입받아 서비스를 호출합니다. 방을 찾지 못하면 HTTP 404로 응답합니다. |
 | 2 | [서비스](app/services/rooms.py) → [저장소](app/repositories/rooms.py) | 서비스가 방 ID로 조회하면 저장소가 방의 배치와 메모리의 최신 상태([내부 모델](app/models/rooms.py))를 함께 돌려줍니다. |
 | 3 | [서비스](app/services/rooms.py) | 좌석마다 배치와 상태를 합친 뒤 `EMPTY`와 `UNKNOWN`을 따로 세고 빈자리 비율로 혼잡도를 계산합니다. 목록과 집계를 한 응답에 담습니다. |
-| 4 | [응답 스키마](app/schemas/rooms.py) | `RoomSnapshot`은 응답의 필드와 타입을 정의합니다. 내부 모델과 분리돼 있어 저장 방식이 바뀌어도 응답 형식은 유지됩니다. FastAPI가 이 형식으로 JSON을 반환하고 `/docs`에 응답 구조를 표시합니다. |
+| 4 | [응답 스키마](app/schemas/rooms.py) | `RoomSnapshot`은 응답의 필드와 타입을 정의합니다. 방 목록 항목(`RoomSummaryResponse`)을 이어받아 요약 필드를 한 곳에서 정의합니다. 내부 모델과 분리돼 있어 저장 방식이 바뀌어도 응답 형식은 유지됩니다. FastAPI가 이 형식으로 JSON을 반환하고 `/docs`에 응답 구조를 표시합니다. |
 
 엔드포인트는 `async def`로 작성합니다. 방 상태는 프로세스 메모리에 있으므로 uvicorn은 워커 1개로 실행합니다. 테스트는 `create_app()`으로 매번 새 앱과 새 저장소를 띄우며, 다른 방 데이터를 넣은 저장소를 주입할 수도 있습니다.
 
@@ -124,6 +154,24 @@ curl -X POST http://127.0.0.1:8000/api/v1/rooms/IT4-101/seats/status \
 | Render 배포 | 20초 동안 응답 없음 → 이유 없이 끊김 | 일반 HTTP 응답이라 프록시를 그대로 지남 |
 
 거절은 Starlette의 `websocket.send_denial_response()`로 합니다(ASGI의 WebSocket Denial Response 확장, uvicorn이 지원합니다). 브라우저는 거절 이유를 JS에 보여 주지 않고 연결 실패만 알리므로, 웹은 연결 직후 하는 방 조회의 404로 판단합니다. [#32](https://github.com/KNUCreaterCrew/backend/issues/32)
+
+## 다른 주소의 웹에서 부르기 (CORS)
+
+웹은 백엔드와 다른 주소(별도 정적 호스팅)에 배포합니다. 브라우저는 다른 출처의 REST 응답을 기본으로 막으므로, 허용할 웹 출처를 환경 변수 `CORS_ALLOW_ORIGINS`에 쉼표로 구분해 적습니다.
+
+```sh
+CORS_ALLOW_ORIGINS=https://zeroframe-web.example,http://localhost:4173
+```
+
+| 설정 | 동작 |
+| --- | --- |
+| 비어 있음(기본값) | CORS 미들웨어를 달지 않습니다. 다른 출처의 브라우저는 응답을 읽지 못합니다. |
+| 출처를 적음 | 적은 출처에만 `Access-Control-Allow-Origin`을 돌려줍니다. 끝의 `/`는 떼고 비교합니다. |
+| 허용 메서드 | `GET`만 엽니다. 장치 보고(`POST`)는 브라우저가 보내는 요청이 아니므로 사전 요청(OPTIONS)도 거절합니다. |
+
+로컬 개발에는 필요 없습니다. 프론트의 Vite 개발 서버가 `/api`와 `/ws`를 백엔드로 넘겨 같은 출처가 되기 때문입니다. 배포한 백엔드를 `vite preview`(기본 `http://localhost:4173`)처럼 다른 출처에서 부를 때만 넣습니다. 브라우저의 WebSocket 연결에는 CORS가 적용되지 않으므로 이 설정과 상관없이 연결됩니다.
+
+**설정을 `Settings`와 나눈 이유:** 미들웨어는 앱이 시작하기 전에 달아야 하므로, `create_app()`이 앱을 만들 때 이 값을 읽습니다. 그런데 `app = create_app()`은 `app.main`을 import할 때 실행되고, `Settings`의 `EDGE_API_KEY`는 필수라서 같은 설정에 두면 키 없는 import가 실패합니다. 그래서 필수 값이 없는 `CorsSettings`로 나누고, 테스트는 `create_app(cors_settings_loader=...)`로 값을 주입합니다. 장치 키는 지금처럼 서버가 시작할 때(lifespan) 읽습니다.
 
 ## 장치 연결 감시
 
@@ -263,7 +311,7 @@ uv run python -m demo
    python -c "import secrets; print(secrets.token_urlsafe(32))"
    ```
 2. **Blueprint를 만듭니다.** Render 대시보드에서 **New → Blueprint**를 누르고 GitHub의 `KNUCreaterCrew/backend` 저장소를 고릅니다. 저장소가 목록에 없으면 Render GitHub 앱이 조직 저장소에 접근하도록 허용해야 합니다. 조직 관리자 권한이 필요할 수 있습니다.
-3. **키를 입력하고 적용합니다.** Render가 `render.yaml`을 읽어 `zeroframe-backend` 서비스(무료, 싱가포르)를 보여 줍니다. `EDGE_API_KEY` 칸에 1번의 키를 넣고 **Apply**를 누릅니다.
+3. **키를 입력하고 적용합니다.** Render가 `render.yaml`을 읽어 `zeroframe-backend` 서비스(무료, 싱가포르)를 보여 줍니다. `EDGE_API_KEY` 칸에 1번의 키를 넣고 **Apply**를 누릅니다. `CORS_ALLOW_ORIGINS`는 웹 주소가 정해지기 전이면 비워 둡니다. 웹을 배포한 뒤 서비스의 Environment 탭에서 웹 출처(예: `https://zeroframe-web.example`)를 넣으면 Render가 서버를 다시 시작합니다. [CORS](#다른-주소의-웹에서-부르기-cors)
 4. **로그를 확인합니다.** 서비스의 Logs 탭에서 아래 순서로 나오면 정상입니다.
    ```
    uv sync --locked --no-dev                      ← 빌드: 테스트 도구 없이 설치
