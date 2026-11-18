@@ -2,7 +2,7 @@
 name = "zeroframe-backend"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["fastapi", "pydantic>=2", "pydantic-settings>=2", "uvicorn"]
+dependencies = ["fastapi", "pydantic>=2", "pydantic-settings>=2", "uvicorn", "websockets"]
 
 [dependency-groups]
 dev = ["httpx2", "pytest"]
