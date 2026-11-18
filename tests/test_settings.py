@@ -19,3 +19,17 @@ def test_server_refuses_to_start_without_a_key(monkeypatch, value):
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_stats_db_path_is_read_from_the_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("EDGE_API_KEY", "key-from-env")
+    monkeypatch.setenv("STATS_DB_PATH", str(tmp_path / "render-disk" / "stats.sqlite3"))
+
+    assert Settings(_env_file=None).stats_db_path == tmp_path / "render-disk" / "stats.sqlite3"
+
+
+def test_stats_db_path_defaults_to_var(monkeypatch):
+    monkeypatch.setenv("EDGE_API_KEY", "key-from-env")
+    monkeypatch.delenv("STATS_DB_PATH", raising=False)
+
+    assert str(Settings(_env_file=None).stats_db_path) == "var/stats.sqlite3"
