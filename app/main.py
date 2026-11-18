@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.clock import Clock, utc_now
 from app.connections import RoomConnections
@@ -12,7 +13,7 @@ from app.repositories.stats import StatsStore
 from app.routers import health, realtime, reports, rooms, stats as stats_router
 from app.services import stats
 from app.services.edge import CHECK_INTERVAL_SECONDS, watch_edges
-from app.settings import Settings
+from app.settings import CorsSettings, Settings
 
 
 def create_app(
@@ -21,6 +22,7 @@ def create_app(
     clock: Clock = utc_now,
     edge_check_interval: float = CHECK_INTERVAL_SECONDS,
     stats_check_interval: float = stats.CHECK_INTERVAL_SECONDS,
+    cors_settings_loader: Callable[[], CorsSettings] = CorsSettings,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -50,6 +52,15 @@ def create_app(
                 await task
 
     app = FastAPI(title="ZeroFrame Backend", lifespan=lifespan)
+
+    # 미들웨어는 앱이 시작하기 전에 달아야 하므로 lifespan이 아니라 여기서 읽는다.
+    # 허용 출처가 없으면 미들웨어를 달지 않아, 다른 출처의 브라우저는 응답을 읽지 못한다.
+    # GET만 연다. 장치 보고(POST)는 브라우저가 보내는 요청이 아니다.
+    # WebSocket에는 CORS가 적용되지 않으므로 이 설정과 상관없다.
+    allow_origins = cors_settings_loader().cors_allow_origins
+    if allow_origins:
+        app.add_middleware(CORSMiddleware, allow_origins=allow_origins, allow_methods=["GET"])
+
     app.include_router(health.router)
     app.include_router(rooms.router)
     app.include_router(reports.router)
