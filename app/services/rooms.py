@@ -1,6 +1,13 @@
-from app.models.rooms import SeatConfig, SeatState, SeatStatus
+from dataclasses import dataclass
+
+from app.models.rooms import RoomState, SeatConfig, SeatState, SeatStatus
 from app.repositories.rooms import RoomRepository
-from app.schemas.rooms import CongestionLevel, RoomSnapshot, SeatLayoutResponse, SeatResponse
+from app.schemas.rooms import (
+    CongestionLevel,
+    RoomSnapshot,
+    SeatLayoutResponse,
+    SeatResponse,
+)
 
 
 def congestion_level(available_seats: int, total_seats: int) -> CongestionLevel:
@@ -10,6 +17,23 @@ def congestion_level(available_seats: int, total_seats: int) -> CongestionLevel:
     if available_ratio >= 0.25:
         return "MODERATE"
     return "HIGH"
+
+
+@dataclass(frozen=True)
+class RoomSummary:
+    total_seats: int
+    available_seats: int
+    unknown_seats: int
+    congestion_level: CongestionLevel
+
+
+def summarize(room: RoomState) -> RoomSummary:
+    """방의 현재 좌석 상태로 집계를 낸다. 조회 응답과 실시간 알림이 모두 이 함수를 쓴다."""
+    statuses = [room.seats[seat.seat_id].status for seat in room.config.seats]
+    total = len(statuses)
+    available = statuses.count(SeatStatus.EMPTY)
+    unknown = statuses.count(SeatStatus.UNKNOWN)
+    return RoomSummary(total, available, unknown, congestion_level(available, total))
 
 
 def _seat_response(config: SeatConfig, state: SeatState) -> SeatResponse:
@@ -33,16 +57,14 @@ def get_room_snapshot(rooms: RoomRepository, room_id: str) -> RoomSnapshot | Non
         return None
 
     seats = [_seat_response(seat, room.seats[seat.seat_id]) for seat in room.config.seats]
-    total = len(seats)
-    available = sum(seat.status == SeatStatus.EMPTY for seat in seats)
-    unknown = sum(seat.status == SeatStatus.UNKNOWN for seat in seats)
+    summary = summarize(room)
     return RoomSnapshot(
         room_id=room.config.room_id,
         room_name=room.config.room_name,
-        total_seats=total,
-        available_seats=available,
-        unknown_seats=unknown,
-        congestion_level=congestion_level(available, total),
+        total_seats=summary.total_seats,
+        available_seats=summary.available_seats,
+        unknown_seats=summary.unknown_seats,
+        congestion_level=summary.congestion_level,
         edge_online=room.edge_online,
         version=room.version,
         seats=seats,
