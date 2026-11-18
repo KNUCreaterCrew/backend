@@ -12,6 +12,7 @@ from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.testclient import WebSocketDenialResponse
 from starlette.websockets import WebSocketDisconnect
 
 from app.connections import SLOW_CLIENT_CLOSE_CODE, RoomConnections
@@ -152,12 +153,15 @@ def test_other_rooms_do_not_receive_the_events(client):
 # ── 연결의 시작과 끝 ─────────────────────────────────────────────
 
 
-def test_unregistered_room_is_closed_with_4404(client):
-    with pytest.raises(WebSocketDisconnect) as closed:
-        with client.websocket_connect("/ws/rooms/IT4-999") as ws:
-            ws.receive_json()
+def test_unregistered_room_is_rejected_before_accepting(client):
+    # 수락한 뒤 닫지 않고 핸드셰이크를 HTTP 404로 거절한다. 프록시를 거쳐도 일반 HTTP 응답은 바로 도착한다(#32).
+    with pytest.raises(WebSocketDenialResponse) as rejected:
+        with client.websocket_connect("/ws/rooms/IT4-999"):
+            pass
 
-    assert closed.value.code == 4404
+    assert rejected.value.status_code == 404
+    assert rejected.value.json() == {"detail": "등록되지 않은 방입니다."}
+    assert client.app.state.connections.count("IT4-999") == 0
 
 
 def test_connection_is_forgotten_after_the_student_leaves(client):
