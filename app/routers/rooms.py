@@ -1,10 +1,15 @@
 from fastapi import APIRouter, HTTPException
 
 from app.dependencies import RoomRepositoryDep
-from app.schemas.rooms import RoomSnapshot
-from app.services.rooms import get_room_snapshot
+from app.schemas.rooms import RoomSnapshot, RoomSummaryResponse
+from app.services.rooms import get_room_snapshot, list_room_summaries
 
 router = APIRouter(prefix="/api/v1/rooms", tags=["rooms"])
+
+
+@router.get("")
+async def list_rooms(rooms: RoomRepositoryDep) -> list[RoomSummaryResponse]:
+    return list_room_summaries(rooms)
 
 
 @router.get("/{room_id}", responses={404: {"description": "등록되지 않은 방"}})
