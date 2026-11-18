@@ -10,16 +10,17 @@ ZeroFrame은 경북대학교 컴퓨터학부 학생이 과방이나 실습실에
 git clone https://github.com/KNUCreaterCrew/backend.git
 cd backend
 uv sync --locked
+echo "EDGE_API_KEY=local-dev-key" > .env
 uv run uvicorn app.main:app --reload
 ```
 
-`uv sync --locked`는 저장소의 `uv.lock`에 기록된 버전으로 가상환경을 구성합니다. 서버가 켜지면 브라우저에서 `http://127.0.0.1:8000/health`를 열어 HTTP 200과 다음 응답을 확인할 수 있습니다.
+`uv sync --locked`는 저장소의 `uv.lock`에 기록된 버전으로 가상환경을 구성합니다. 서버는 장치 인증 키를 환경 변수 `EDGE_API_KEY`나 `.env` 파일에서 읽으며, 키가 없으면 시작하지 않습니다. `.env`는 저장소에 올리지 않습니다. 위 키는 로컬 확인용 예시이므로 실제 장치에는 따로 만든 키를 씁니다. 서버가 켜지면 브라우저에서 `http://127.0.0.1:8000/health`를 열어 HTTP 200과 다음 응답을 확인할 수 있습니다.
 
 ```json
 {"status": "ok"}
 ```
 
-같은 폴더에서 아래 명령을 실행하면 상태 확인, 방 조회, 혼잡도 집계 테스트를 실행합니다.
+같은 폴더에서 아래 명령을 실행하면 상태 확인, 방 조회, 혼잡도 집계, 장치 보고 반영 테스트를 실행합니다. 테스트는 테스트용 키를 주입하므로 `.env`가 없어도 됩니다.
 
 ```sh
 uv run python -m pytest
@@ -58,6 +59,26 @@ PR을 열거나 `main`에 push하면 GitHub Actions가 같은 명령으로 테�
 엔드포인트는 `async def`로 작성합니다. 방 상태는 프로세스 메모리에 있으므로 uvicorn은 워커 1개로 실행합니다. 테스트는 `create_app()`으로 매번 새 앱과 새 저장소를 띄우며, 다른 방 데이터를 넣은 저장소를 주입할 수도 있습니다.
 
 집계 기준을 바꿀 때는 서비스를, 데이터를 읽는 방식을 바꿀 때는 저장소를 살펴보면 됩니다. [공통 연동 명세](https://github.com/KNUCreaterCrew/docs/blob/main/INTERFACES.md)
+
+## 장치의 상태 보고 반영
+
+Vision 장치는 맡은 좌석 전체의 상태를 `POST /api/v1/rooms/{room_id}/seats/status`로 보냅니다. 상태가 바뀌면 바로 보내고, 바뀌지 않아도 10초마다 보냅니다. 요청 형식과 반영 규칙은 [공통 연동 명세](https://github.com/KNUCreaterCrew/docs/blob/main/INTERFACES.md)를 따릅니다. 서버를 켠 뒤 아래 예시 보고를 보내고 방을 다시 조회하면 A1이 사용 중으로 바뀌어 있습니다.
+
+```sh
+curl -X POST http://127.0.0.1:8000/api/v1/rooms/IT4-101/seats/status \
+  -H 'Content-Type: application/json' -H 'X-Edge-Api-Key: local-dev-key' \
+  -d '{"room_id":"IT4-101","timestamp":"2026-11-24T10:15:30+09:00","inference_fps":2.1,"saved_frames_count":0,
+       "seats":[{"seat_id":"A-01","status":"OCCUPIED","confidence":null,"last_observed_at":"2026-11-24T10:15:29+09:00"}]}'
+```
+
+| 경우 | 응답 | 방 상태 |
+| --- | --- | --- |
+| 키가 없거나 틀림 | 401 | 그대로 |
+| 등록되지 않은 방 | 404 | 그대로 |
+| 형식 오류, 등록되지 않은 좌석이 섞임, 경로와 본문의 방 ID가 다름 | 422 | 그대로. 일부 좌석만 바뀌지 않습니다. |
+| 정상 보고 | 200, `updated_count`는 status·reason이 바뀐 좌석 수 | 보고에 담긴 좌석만 바뀝니다. |
+
+[서비스](app/services/reports.py)는 방별 잠금 안에서 보고를 검증하고, 저장된 상태와 비교해 바뀐 좌석 목록을 만든 뒤 한꺼번에 저장합니다. 같은 보고가 다시 오면 바뀐 좌석이 없으므로 `updated_count`가 0이고 방의 `version`도 그대로입니다. 새 관측이 없는 하트비트는 마지막 확인 시각을 바꾸지 않습니다. 서버는 보고를 받은 시각(`server_time`)을 방마다 기록하며, 이후 장치 연결 판단에 이 시각을 씁니다.
 
 ## 학생이 좌석도를 열면
 
