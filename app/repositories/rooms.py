@@ -33,6 +33,9 @@ class RoomRepository:
     def find(self, room_id: str) -> RoomState | None:
         return self._rooms.get(room_id)
 
+    def all(self) -> list[RoomState]:
+        return list(self._rooms.values())
+
 
 def load_rooms() -> RoomRepository:
     return RoomRepository.from_config_file(ROOMS_CONFIG_PATH, started_at=datetime.now(timezone.utc))

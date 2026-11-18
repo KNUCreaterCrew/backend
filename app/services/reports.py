@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.models.rooms import SeatChange, SeatState, SeatStatus
+from app.models.rooms import SeatChange
 from app.repositories.rooms import RoomRepository
-from app.schemas.reports import SeatReport, StatusReport
+from app.schemas.reports import StatusReport
 from app.services.events import Publish, room_events
 
 
@@ -25,28 +25,6 @@ class ReportOutcome:
     changes: tuple[SeatChange, ...]
 
 
-def next_seat_state(current: SeatState, seat: SeatReport, reported_at: datetime) -> SeatState:
-    """저장된 좌석 상태에 보고 한 줄을 적용한 새 상태를 만든다. 저장은 하지 않는다."""
-    # 새 관측이 없으면 마지막 확인 시각을 그대로 둔다.
-    last_observed_at = seat.last_observed_at or current.last_observed_at
-
-    if seat.status == current.status:
-        status_since = current.status_since
-    elif seat.status == SeatStatus.UNKNOWN:
-        # 확인 불가가 된 순간은 관측 시각이 아니라 장치가 보고를 만든 시각이다.
-        status_since = reported_at
-    else:
-        # 사용 중·짐 있음·빈자리는 그 상태를 확인한 관측 시각부터다.
-        status_since = last_observed_at or reported_at
-
-    return SeatState(
-        status=seat.status,
-        reason=seat.reason,
-        status_since=status_since,
-        last_observed_at=last_observed_at,
-    )
-
-
 async def apply_status_report(
     rooms: RoomRepository, room_id: str, report: StatusReport, *, received_at: datetime, publish: Publish
 ) -> ReportOutcome:
@@ -66,28 +44,17 @@ async def apply_status_report(
         if unregistered:
             raise InvalidReport(f"{room_id}에 등록되지 않은 좌석입니다: {', '.join(unregistered)}")
 
-        # 2. 비교: 새 상태를 모두 계산한 뒤, status나 reason이 달라진 좌석만 변경으로 센다.
+        # 2. 비교: 보고에 담긴 좌석마다 새 상태를 계산한다. (보고에 없는 좌석은 그대로 둔다.)
         next_states = {
-            seat.seat_id: next_seat_state(room.seats[seat.seat_id], seat, report.timestamp)
+            seat.seat_id: room.seats[seat.seat_id].transition(
+                status=seat.status, reason=seat.reason, observed_at=seat.last_observed_at, at=report.timestamp
+            )
             for seat in report.seats
         }
-        changes = tuple(
-            SeatChange(
-                seat_id=seat_id,
-                prev_status=room.seats[seat_id].status,
-                curr_status=state.status,
-                reason=state.reason,
-                status_since=state.status_since,
-                last_observed_at=state.last_observed_at,
-            )
-            for seat_id, state in next_states.items()
-            if (state.status, state.reason) != (room.seats[seat_id].status, room.seats[seat_id].reason)
-        )
         edge_came_online = not room.edge_online
 
-        # 3. 저장: 보고에 없는 좌석은 그대로 둔다.
-        for seat_id, state in next_states.items():
-            room.set_seat(seat_id, state)
+        # 3. 저장: status나 reason이 달라진 좌석이 변경(changes)이 된다.
+        changes = room.replace_seats(next_states)
         room.edge_online = True
         room.last_report_at = received_at
         if changes or edge_came_online:
