@@ -178,9 +178,10 @@ def apply_events_like_the_web(room: dict, events: list[dict]) -> tuple[dict, int
     """웹이 할 일을 흉내 낸다. 조회 결과에 이벤트를 차례로 반영하고, 버린 이벤트 수도 돌려준다."""
     room = copy.deepcopy(room)
     seats = {seat["seat_id"]: seat for seat in room["seats"]}
+    fetched_version = room["version"]  # 기준은 조회 응답의 version으로 고정한다. (같은 version의 이벤트가 둘일 수 있다.)
     discarded = 0
     for event in events:
-        if event["version"] <= room["version"]:
+        if event["version"] <= fetched_version:
             discarded += 1  # 조회 결과에 이미 들어 있는 변경
             continue
         if event["event"] == "EDGE_STATUS_CHANGED":
