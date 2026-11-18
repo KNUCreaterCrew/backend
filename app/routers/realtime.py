@@ -1,11 +1,9 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 
 from app.dependencies import RoomConnectionsDep, RoomRepositoryDep
 
 router = APIRouter(tags=["realtime"])
-
-UNKNOWN_ROOM_CLOSE_CODE = 4404
-"""등록되지 않은 방으로 연결하면 이 코드로 닫는다. 4000~4999는 앱이 정해 쓰는 범위다."""
 
 
 @router.websocket("/ws/rooms/{room_id}")
@@ -13,13 +11,18 @@ async def room_updates(
     websocket: WebSocket, room_id: str, rooms: RoomRepositoryDep, connections: RoomConnectionsDep
 ) -> None:
     """한 방의 변경 알림을 받는 연결. 서버가 보내기만 하고, 웹이 보내는 메시지는 쓰지 않는다."""
-    # 1. 연결 수락. 이 시점에 웹 쪽에서 onopen이 불린다.
-    await websocket.accept()
-
-    # 2. 없는 방이면 이유를 알 수 있는 코드로 닫는다. (수락 전에 닫으면 웹은 이유 없이 실패만 본다.)
+    # 1. 없는 방이면 연결을 수락하지 않고 HTTP 404로 거절한다.
+    #    수락한 뒤 종료 코드(4404)로 닫으면, 배포 서버(Render)의 앞단 프록시가 그 닫힘 프레임을 전달하지 않아
+    #    웹은 20초 동안 아무 응답 없이 기다리다 이유 없이 끊겼다(#32). 일반 HTTP 응답은 프록시를 그대로 지난다.
+    #    브라우저는 거절 이유를 보여 주지 않으므로, 웹은 연결 직후 하는 방 조회의 404로 판단한다.
     if rooms.find(room_id) is None:
-        await websocket.close(code=UNKNOWN_ROOM_CLOSE_CODE, reason="등록되지 않은 방입니다.")
+        await websocket.send_denial_response(
+            JSONResponse({"detail": "등록되지 않은 방입니다."}, status_code=404)
+        )
         return
+
+    # 2. 연결 수락. 이 시점에 웹 쪽에서 onopen이 불린다.
+    await websocket.accept()
 
     # 3. 이 방의 알림 대상으로 등록한다.
     connections.add(room_id, websocket)
