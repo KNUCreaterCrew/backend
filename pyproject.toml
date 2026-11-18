@@ -5,4 +5,8 @@ requires-python = ">=3.13"
 dependencies = ["fastapi", "pydantic>=2", "pydantic-settings>=2", "uvicorn", "websockets"]
 
 [dependency-groups]
-dev = ["httpx2", "pytest"]
+dev = ["httpx2", "pytest", "pytest-timeout"]
+
+[tool.pytest.ini_options]
+# WebSocket 테스트는 기다리는 이벤트가 오지 않으면 끝없이 기다린다. CI가 멈추지 않고 실패하도록 시간 제한을 둔다.
+timeout = 30
