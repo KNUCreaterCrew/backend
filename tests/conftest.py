@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,6 +26,14 @@ class FakeClock:
 
     def __call__(self) -> datetime:
         return self.now
+
+
+@pytest.fixture(autouse=True)
+def stats_db_path(tmp_path, monkeypatch) -> Path:
+    """모든 테스트가 혼잡도 기록을 임시 파일에 쓰게 한다. 저장소의 var/에 파일이 생기지 않는다."""
+    path = tmp_path / "stats.sqlite3"
+    monkeypatch.setenv("STATS_DB_PATH", str(path))
+    return path
 
 
 @pytest.fixture
