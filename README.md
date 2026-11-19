@@ -163,6 +163,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/rooms/IT4-101/seats/status \
 CORS_ALLOW_ORIGINS=https://zeroframe-web.example,http://localhost:4173
 ```
 
+배포 서버의 값은 [`render.yaml`](render.yaml)에 적어 두었습니다. 지금은 시연용 웹 `https://zeroframe-web.onrender.com` 하나입니다([frontend#7](https://github.com/KNUCreaterCrew/frontend/issues/7)). 웹 주소가 바뀌면 `render.yaml`을 고쳐 `main`에 병합합니다. Render가 Blueprint를 다시 읽어 값을 바꾸고 서버를 다시 시작합니다.
+
 | 설정 | 동작 |
 | --- | --- |
 | 비어 있음(기본값) | CORS 미들웨어를 달지 않습니다. 다른 출처의 브라우저는 응답을 읽지 못합니다. |
@@ -311,7 +313,7 @@ uv run python -m demo
    python -c "import secrets; print(secrets.token_urlsafe(32))"
    ```
 2. **Blueprint를 만듭니다.** Render 대시보드에서 **New → Blueprint**를 누르고 GitHub의 `KNUCreaterCrew/backend` 저장소를 고릅니다. 저장소가 목록에 없으면 Render GitHub 앱이 조직 저장소에 접근하도록 허용해야 합니다. 조직 관리자 권한이 필요할 수 있습니다.
-3. **키를 입력하고 적용합니다.** Render가 `render.yaml`을 읽어 `zeroframe-backend` 서비스(무료, 싱가포르)를 보여 줍니다. `EDGE_API_KEY` 칸에 1번의 키를 넣고 **Apply**를 누릅니다. `CORS_ALLOW_ORIGINS`는 웹 주소가 정해지기 전이면 비워 둡니다. 웹을 배포한 뒤 서비스의 Environment 탭에서 웹 출처(예: `https://zeroframe-web.example`)를 넣으면 Render가 서버를 다시 시작합니다. [CORS](#다른-주소의-웹에서-부르기-cors)
+3. **키를 입력하고 적용합니다.** Render가 `render.yaml`을 읽어 `zeroframe-backend` 서비스(무료, 싱가포르)를 보여 줍니다. `EDGE_API_KEY` 칸에 1번의 키를 넣고 **Apply**를 누릅니다. `CORS_ALLOW_ORIGINS`는 `render.yaml`에 적힌 웹 출처가 그대로 들어갑니다. [CORS](#다른-주소의-웹에서-부르기-cors)
 4. **로그를 확인합니다.** 서비스의 Logs 탭에서 아래 순서로 나오면 정상입니다.
    ```
    uv sync --locked --no-dev                      ← 빌드: 테스트 도구 없이 설치
