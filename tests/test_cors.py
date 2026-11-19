@@ -55,6 +55,14 @@ def test_allowed_origin_can_read_the_response(allowed, path):
     assert response.headers["access-control-allow-origin"] == WEB_ORIGIN
 
 
+def test_allowed_origin_can_read_unregistered_room_404(allowed):
+    """웹은 방 조회 404로 "방 없음"을 판단한다. 헤더가 없으면 브라우저가 응답을 읽지 못해 연결 실패로 보고 재시도한다."""
+    response = allowed.get("/api/v1/rooms/unregistered", headers={"Origin": WEB_ORIGIN})
+
+    assert response.status_code == 404
+    assert response.headers["access-control-allow-origin"] == WEB_ORIGIN
+
+
 def test_other_origin_gets_no_cors_header(allowed):
     response = allowed.get("/api/v1/rooms", headers={"Origin": OTHER_ORIGIN})
 
