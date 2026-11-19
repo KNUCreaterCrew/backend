@@ -17,4 +17,6 @@ services:
       - key: EDGE_API_KEY
         sync: false          # 값은 파일에 적지 않고, 만들 때 대시보드에서 입력한다
       - key: CORS_ALLOW_ORIGINS
-        sync: false          # 웹을 배포한 뒤 그 출처를 대시보드에서 넣는다. 쉼표로 구분, 비우면 다른 출처를 막는다
+        # 웹(Render 정적 사이트)의 출처. 공개 주소라 파일에 두고, Blueprint 동기화로 대시보드 값에 반영된다.
+        # 쉼표로 구분, 끝에 / 없이. 비우면 다른 출처를 막는다
+        value: https://zeroframe-web.onrender.com
