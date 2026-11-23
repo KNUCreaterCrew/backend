@@ -47,7 +47,7 @@ def preflight(client: TestClient, origin: str, method: str = "GET"):
     )
 
 
-@pytest.mark.parametrize("path", ["/api/v1/rooms", "/api/v1/rooms/IT4-101"])
+@pytest.mark.parametrize("path", ["/api/v1/rooms", "/api/v1/rooms/IT4-108", "/api/v1/rooms/IT4-104"])
 def test_allowed_origin_can_read_the_response(allowed, path):
     response = allowed.get(path, headers={"Origin": WEB_ORIGIN})
 

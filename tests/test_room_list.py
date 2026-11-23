@@ -141,17 +141,26 @@ def test_list_leaves_out_seats_and_version(two_rooms_client):
         assert set(item) == set(SUMMARY_FIELDS)
 
 
-def test_fresh_server_lists_the_example_room_as_offline(client):
+def test_fresh_server_lists_the_configured_rooms_as_offline(client):
     assert client.get("/api/v1/rooms").json() == [
         {
-            "room_id": "IT4-101",
-            "room_name": "제1실습실 (예시)",
-            "total_seats": 4,
+            "room_id": "IT4-108",
+            "room_name": "IT4-108호",
+            "total_seats": 6,
             "available_seats": 0,
-            "unknown_seats": 4,
+            "unknown_seats": 6,
             "congestion_level": "HIGH",
             "edge_online": False,
-        }
+        },
+        {
+            "room_id": "IT4-104",
+            "room_name": "IT4-104호",
+            "total_seats": 9,
+            "available_seats": 0,
+            "unknown_seats": 9,
+            "congestion_level": "HIGH",
+            "edge_online": False,
+        },
     ]
 
 

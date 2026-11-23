@@ -26,7 +26,7 @@ def kst(hhmmss: str) -> str:
     return f"2026-11-24T{hhmmss}+09:00"
 
 
-def report(timestamp: str, *seats: dict, room_id: str = "IT4-101") -> StatusReport:
+def report(timestamp: str, *seats: dict, room_id: str = "IT4-108") -> StatusReport:
     return StatusReport.model_validate({
         "room_id": room_id, "timestamp": kst(timestamp), "inference_fps": 2.0, "saved_frames_count": 0,
         "seats": list(seats),
@@ -48,26 +48,28 @@ class Recorder:
         self.sent.append([event.model_dump(mode="json") for event in events])
 
 
-FOUR_SEATS = report(
+SIX_SEATS = report(
     "10:15:40",
     seat("A-01", "EMPTY", "10:15:38"),
     seat("A-02", "OCCUPIED", "10:15:39"),
+    seat("A-03", "EMPTY", "10:15:38"),
     seat("B-01", "AWAY", "10:15:39"),
     seat("B-02", "UNKNOWN", reason="OCCLUDED"),
+    seat("B-03", "OCCUPIED", "10:15:39"),
 )
 
 
 @pytest.fixture
 def online_rooms() -> RoomRepository:
-    """네 좌석 방(IT4-101)이 10:15:40에 보고를 받은 상태."""
+    """여섯 좌석 방(IT4-108)이 10:15:40에 보고를 받은 상태."""
     rooms = RoomRepository.from_config_file(ROOMS_CONFIG_PATH, started_at=T0 - timedelta(minutes=10))
-    asyncio.run(apply_status_report(rooms, "IT4-101", FOUR_SEATS, received_at=T0, publish=Recorder()))
+    asyncio.run(apply_status_report(rooms, "IT4-108", SIX_SEATS, received_at=T0, publish=Recorder()))
     return rooms
 
 
 def check(rooms: RoomRepository, at: datetime, publish=None) -> bool:
     publish = publish or Recorder()
-    return asyncio.run(mark_offline_if_silent(rooms.find("IT4-101"), clock=lambda: at, publish=publish))
+    return asyncio.run(mark_offline_if_silent(rooms.find("IT4-108"), clock=lambda: at, publish=publish))
 
 
 # ── 30초 경계 ────────────────────────────────────────────────────
@@ -80,7 +82,7 @@ def test_room_stays_online_just_before_30_seconds(online_rooms):
 
     assert changed is False
     assert recorder.sent == []
-    assert online_rooms.find("IT4-101").edge_online is True
+    assert online_rooms.find("IT4-108").edge_online is True
 
 
 def test_room_goes_offline_at_30_seconds(online_rooms):
@@ -88,7 +90,7 @@ def test_room_goes_offline_at_30_seconds(online_rooms):
 
     changed = check(online_rooms, T0 + timedelta(seconds=30), recorder)
 
-    room = online_rooms.find("IT4-101")
+    room = online_rooms.find("IT4-108")
     assert changed is True
     assert room.edge_online is False
     assert room.version == 2
@@ -103,14 +105,14 @@ def test_offline_transition_is_not_repeated(online_rooms):
 
     assert changed is False
     assert recorder.sent == []
-    assert online_rooms.find("IT4-101").version == 2
+    assert online_rooms.find("IT4-108").version == 2
 
 
 def test_room_that_never_reported_is_left_alone():
     rooms = RoomRepository.from_config_file(ROOMS_CONFIG_PATH, started_at=T0)
 
     assert check(rooms, T0 + timedelta(hours=1)) is False
-    assert rooms.find("IT4-101").version == 0
+    assert rooms.find("IT4-108").version == 0
 
 
 # ── 오프라인 전환 규칙 ───────────────────────────────────────────
@@ -122,8 +124,8 @@ def test_every_seat_becomes_unknown_but_keeps_its_last_observed_time(online_room
 
     check(online_rooms, offline_at, recorder)
 
-    seats = online_rooms.find("IT4-101").seats
-    for seat_id in ("A-01", "A-02", "B-01", "B-02"):
+    seats = online_rooms.find("IT4-108").seats
+    for seat_id in ("A-01", "A-02", "A-03", "B-01", "B-02", "B-03"):
         assert (seats[seat_id].status, seats[seat_id].reason) == (SeatStatus.UNKNOWN, SeatReason.EDGE_OFFLINE)
     # 상태가 바뀐 좌석의 상태 변경 시각은 서버가 전환한 시각, 마지막 확인 시각은 그대로다.
     assert seats["A-01"].status_since == offline_at
@@ -133,8 +135,8 @@ def test_every_seat_becomes_unknown_but_keeps_its_last_observed_time(online_room
     assert seats["B-02"].status_since == T0 - timedelta(minutes=10)
 
     seat_updated = recorder.sent[0][1]
-    assert len(seat_updated["changes"]) == 4  # 사유만 바뀐 B-02도 변경이다.
-    assert (seat_updated["available_seats"], seat_updated["unknown_seats"]) == (0, 4)
+    assert len(seat_updated["changes"]) == 6  # 사유만 바뀐 B-02도 변경이다.
+    assert (seat_updated["available_seats"], seat_updated["unknown_seats"]) == (0, 6)
 
 
 def test_event_and_room_snapshot_agree_after_going_offline(online_rooms):
@@ -143,7 +145,7 @@ def test_event_and_room_snapshot_agree_after_going_offline(online_rooms):
     check(online_rooms, T0 + timedelta(seconds=31), recorder)
 
     edge, seat_updated = recorder.sent[0]
-    snapshot = get_room_snapshot(online_rooms, "IT4-101")
+    snapshot = get_room_snapshot(online_rooms, "IT4-108")
     assert edge["edge_online"] is snapshot.edge_online is False
     assert seat_updated["version"] == edge["version"] == snapshot.version
     assert seat_updated["available_seats"] == snapshot.available_seats
@@ -157,11 +159,11 @@ def test_reconnect_shows_only_what_the_new_report_confirms(online_rooms):
     # 장치는 끊긴 동안 A1을 30초 넘게 보지 못했다. 그래서 A1을 관측 만료로 보낸다.
     reconnect = report("10:17:05", seat("A-01", "UNKNOWN", reason="STALE_OBSERVATION"), seat("A-02", "OCCUPIED", "10:17:04"))
 
-    asyncio.run(apply_status_report(online_rooms, "IT4-101", reconnect, received_at=T0 + timedelta(seconds=85),
+    asyncio.run(apply_status_report(online_rooms, "IT4-108", reconnect, received_at=T0 + timedelta(seconds=85),
                                     publish=Recorder()))
 
-    room = online_rooms.find("IT4-101")
-    snapshot = get_room_snapshot(online_rooms, "IT4-101")
+    room = online_rooms.find("IT4-108")
+    snapshot = get_room_snapshot(online_rooms, "IT4-108")
     assert room.edge_online is True
     assert room.seats["A-01"].status == SeatStatus.UNKNOWN  # 끊기기 전 EMPTY가 되살아나지 않는다.
     assert room.seats["A-02"].status == SeatStatus.OCCUPIED
@@ -179,16 +181,16 @@ def test_offline_check_and_report_at_the_same_time_stay_in_order(online_rooms):
 
     async def both() -> None:
         now = T0 + timedelta(seconds=31)
-        room = online_rooms.find("IT4-101")
+        room = online_rooms.find("IT4-108")
         await asyncio.gather(
             mark_offline_if_silent(room, clock=lambda: now, publish=slow_publish),
-            apply_status_report(online_rooms, "IT4-101", report("10:16:11", seat("A-01", "OCCUPIED", "10:16:10")),
+            apply_status_report(online_rooms, "IT4-108", report("10:16:11", seat("A-01", "OCCUPIED", "10:16:10")),
                                 received_at=now, publish=slow_publish),
         )
 
     asyncio.run(both())
 
-    room = online_rooms.find("IT4-101")
+    room = online_rooms.find("IT4-108")
     assert delivered == [(2, False), (3, True)]  # 끊김 → 재연결 순서
     assert room.edge_online is True  # 마지막으로 들어온 보고가 최종 상태
     assert room.seats["A-01"].status == SeatStatus.OCCUPIED
@@ -252,12 +254,12 @@ def test_spec_flow_first_report_heartbeat_offline_and_reconnect(spec_app):
     with client.websocket_connect("/ws/rooms/IT4-101") as ws:
         # 10:15:30 첫 보고 → version 1
         clock.now = at("10:15:30", 112000)
-        post(client, report("10:15:30", seat("A-01", "OCCUPIED", "10:15:29")))
+        post(client, report("10:15:30", seat("A-01", "OCCUPIED", "10:15:29"), room_id="IT4-101"))
         assert [ws.receive_json()["version"], ws.receive_json()["version"]] == [1, 1]
 
         # 10:15:40 새 관측 없는 하트비트 → 알림 없음, 서버 수신 시각만 기록
         clock.now = at("10:15:40", 105000)
-        post(client, report("10:15:40", seat("A-01", "OCCUPIED", "10:15:29")))
+        post(client, report("10:15:40", seat("A-01", "OCCUPIED", "10:15:29"), room_id="IT4-101"))
 
         # 10:16:11 감시 작업이 30초 넘은 것을 발견 → version 2 (명세 예시와 같은 JSON)
         clock.now = at("10:16:11")
@@ -275,7 +277,7 @@ def test_spec_flow_first_report_heartbeat_offline_and_reconnect(spec_app):
 
         # 10:17:05 장치가 다시 보고 → version 3
         clock.now = at("10:17:05", 87000)
-        ack = post(client, report("10:17:05", seat("A-01", "OCCUPIED", "10:17:04"))).json()
+        ack = post(client, report("10:17:05", seat("A-01", "OCCUPIED", "10:17:04"), room_id="IT4-101")).json()
         assert ws.receive_json() == {
             "event": "EDGE_STATUS_CHANGED", "room_id": "IT4-101", "version": 3, "edge_online": True,
         }

@@ -19,10 +19,10 @@ def kst(text: str) -> datetime:
 
 
 def minutes(start: str, *values: tuple[int, int, bool], source: RecordSource = OBSERVED) -> list[RoomMinute]:
-    """start(한국 시각)부터 1분씩 (빈자리, 확인 불가, 장치 연결) 기록을 만든다. 4석 방."""
+    """start(한국 시각)부터 1분씩 (빈자리, 확인 불가, 장치 연결) 기록을 만든다. 6석 방."""
     first = kst(start)
     return [
-        RoomMinute("IT4-101", floor_minute(first + timedelta(minutes=i)), 4, available, unknown, online, source)
+        RoomMinute("IT4-108", floor_minute(first + timedelta(minutes=i)), 6, available, unknown, online, source)
         for i, (available, unknown, online) in enumerate(values)
     ]
 
@@ -31,7 +31,7 @@ def repeat(value: tuple[int, int, bool], count: int) -> list[tuple[int, int, boo
     return [value] * count
 
 
-OFFLINE = (0, 4, False)
+OFFLINE = (0, 6, False)
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def store(client, stats_db_path: Path) -> StatsStore:
     return StatsStore(stats_db_path)
 
 
-def daily(client, day: str | None = "2026-11-24", room_id: str = "IT4-101"):
+def daily(client, day: str | None = "2026-11-24", room_id: str = "IT4-108"):
     query = f"?date={day}" if day else ""
     return client.get(f"/api/v1/rooms/{room_id}/stats/daily{query}")
 
@@ -66,7 +66,7 @@ def test_daily_reproduces_the_spec_example(client, store):
     assert response.status_code == 200
     body = response.json()
     assert {key: body[key] for key in ("room_id", "date", "bucket_minutes", "total_seats", "data_source")} == {
-        "room_id": "IT4-101", "date": "2026-11-24", "bucket_minutes": 10, "total_seats": 4,
+        "room_id": "IT4-108", "date": "2026-11-24", "bucket_minutes": 10, "total_seats": 6,
         "data_source": "OBSERVED",
     }
     assert len(body["buckets"]) == 144
@@ -83,20 +83,20 @@ def test_daily_reproduces_the_spec_example(client, store):
 
 
 def test_minutes_with_every_seat_unknown_are_left_out(client, store):
-    # 장치는 연결돼 있지만 4석 모두 가려진 분은 확인할 수 없는 분이다. 빈자리 0으로 넣으면 만석처럼 보인다.
-    store.insert(minutes("2026-11-24T10:00", (3, 0, True), (0, 4, True)))
+    # 장치는 연결돼 있지만 6석 모두 가려진 분은 확인할 수 없는 분이다. 빈자리 0으로 넣으면 만석처럼 보인다.
+    store.insert(minutes("2026-11-24T10:00", (3, 0, True), (0, 6, True)))
 
     assert bucket_at(daily(client).json(), "10:00")["avg_available_seats"] == 3.0
     assert bucket_at(daily(client).json(), "10:00")["observed_minutes"] == 1
 
 
 def test_ratio_uses_every_seat_even_when_some_are_unknown(client, store):
-    # 4석 중 빈자리 1, 확인 불가 2 → 1/4 = 25% → MODERATE. 확인된 좌석 기준(1/2 = 50%)이 아니다.
-    store.insert(minutes("2026-11-24T10:00", (1, 2, True)))
+    # 6석 중 빈자리 2, 확인 불가 3 → 2/6 = 33.3% → MODERATE. 확인된 좌석 기준(2/3 = 66.7% LOW)이 아니다.
+    store.insert(minutes("2026-11-24T10:00", (2, 3, True)))
 
     bucket = bucket_at(daily(client).json(), "10:00")
     assert (bucket["avg_available_seats"], bucket["avg_unknown_seats"], bucket["congestion_level"]) == (
-        1.0, 2.0, "MODERATE",
+        2.0, 3.0, "MODERATE",
     )
 
 
@@ -123,11 +123,11 @@ def test_average_rounds_half_up(client, store):
 
 
 def test_congestion_uses_the_rounded_average(client, store):
-    # 8분 평균 19/8 = 2.375 → 2.4. 2.4/4 = 60% → LOW. 반올림 전 값(59.4%)이면 MODERATE가 되어 숫자와 색이 어긋난다.
-    store.insert(minutes("2026-11-24T10:00", *repeat((2, 0, True), 5), *repeat((3, 0, True), 3)))
+    # 7분 평균 25/7 = 3.571 → 3.6. 3.6/6 = 60% → LOW. 반올림 전 값(59.5%)이면 MODERATE가 되어 숫자와 색이 어긋난다.
+    store.insert(minutes("2026-11-24T10:00", *repeat((3, 0, True), 3), *repeat((4, 0, True), 4)))
 
     bucket = bucket_at(daily(client).json(), "10:00")
-    assert (bucket["avg_available_seats"], bucket["congestion_level"]) == (2.4, "LOW")
+    assert (bucket["avg_available_seats"], bucket["congestion_level"]) == (3.6, "LOW")
 
 
 def test_day_without_records_is_all_null(client):
@@ -160,7 +160,7 @@ def four_weeks(client, store, clock: FakeClock):
     )
 
 
-def weekly(client, weeks: int | None = None, room_id: str = "IT4-101"):
+def weekly(client, weeks: int | None = None, room_id: str = "IT4-108"):
     query = f"?weeks={weeks}" if weeks is not None else ""
     return client.get(f"/api/v1/rooms/{room_id}/stats/weekly{query}")
 
@@ -224,7 +224,7 @@ def test_unknown_room_is_404(client, path):
 
 @pytest.mark.parametrize("query", ["date=yesterday", "date=2026-13-01", "date=2026-11-24T10:00"])
 def test_bad_date_is_422(client, query):
-    assert client.get(f"/api/v1/rooms/IT4-101/stats/daily?{query}").status_code == 422
+    assert client.get(f"/api/v1/rooms/IT4-108/stats/daily?{query}").status_code == 422
 
 
 @pytest.mark.parametrize("weeks", [0, 9, -1])

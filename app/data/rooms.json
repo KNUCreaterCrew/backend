@@ -1,8 +1,8 @@
 {
   "rooms": [
     {
-      "room_id": "IT4-101",
-      "room_name": "제1실습실 (예시)",
+      "room_id": "IT4-108",
+      "room_name": "IT4-108호",
       "seats": [
         {
           "seat_id": "A-01",
@@ -19,6 +19,13 @@
           "layout": { "x": 80, "y": 0, "width": 64, "height": 48 }
         },
         {
+          "seat_id": "A-03",
+          "label": "A3",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 160, "y": 0, "width": 64, "height": 48 }
+        },
+        {
           "seat_id": "B-01",
           "label": "B1",
           "has_outlet": true,
@@ -31,6 +38,82 @@
           "has_outlet": false,
           "is_window": false,
           "layout": { "x": 80, "y": 64, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "B-03",
+          "label": "B3",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 160, "y": 64, "width": 64, "height": 48 }
+        }
+      ]
+    },
+    {
+      "room_id": "IT4-104",
+      "room_name": "IT4-104호",
+      "seats": [
+        {
+          "seat_id": "A-01",
+          "label": "A1",
+          "has_outlet": true,
+          "is_window": true,
+          "layout": { "x": 0, "y": 0, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "A-02",
+          "label": "A2",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 80, "y": 0, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "A-03",
+          "label": "A3",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 160, "y": 0, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "B-01",
+          "label": "B1",
+          "has_outlet": true,
+          "is_window": true,
+          "layout": { "x": 0, "y": 64, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "B-02",
+          "label": "B2",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 80, "y": 64, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "B-03",
+          "label": "B3",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 160, "y": 64, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "C-01",
+          "label": "C1",
+          "has_outlet": true,
+          "is_window": true,
+          "layout": { "x": 0, "y": 128, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "C-02",
+          "label": "C2",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 80, "y": 128, "width": 64, "height": 48 }
+        },
+        {
+          "seat_id": "C-03",
+          "label": "C3",
+          "has_outlet": false,
+          "is_window": false,
+          "layout": { "x": 160, "y": 128, "width": 64, "height": 48 }
         }
       ]
     }

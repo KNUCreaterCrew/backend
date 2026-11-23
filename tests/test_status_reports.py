@@ -23,7 +23,7 @@ from tests.conftest import (
     settings_with_test_key,
 )
 
-URL = "/api/v1/rooms/IT4-101/seats/status"
+URL = "/api/v1/rooms/IT4-108/seats/status"
 
 
 def kst(hhmmss: str, day: int = 24) -> datetime:
@@ -31,7 +31,7 @@ def kst(hhmmss: str, day: int = 24) -> datetime:
     return datetime(2026, 11, day, hour, minute, second, tzinfo=KST)
 
 
-def report(timestamp: str, *seats: dict, room_id: str = "IT4-101") -> dict:
+def report(timestamp: str, *seats: dict, room_id: str = "IT4-108") -> dict:
     return {
         "room_id": room_id,
         "timestamp": timestamp,
@@ -107,7 +107,7 @@ SPEC_ROOM_AFTER_FIRST_REPORT = {
 def test_first_report_matches_the_spec_example(spec_client):
     spec_client.clock.now = datetime(2026, 11, 24, 10, 15, 30, 112000, tzinfo=KST)
 
-    response = post(spec_client, SPEC_FIRST_REPORT)
+    response = post(spec_client, SPEC_FIRST_REPORT, url="/api/v1/rooms/IT4-101/seats/status")
 
     assert response.status_code == 200
     ack = response.json()
@@ -119,10 +119,10 @@ def test_first_report_matches_the_spec_example(spec_client):
 
 def test_heartbeat_without_new_observation_keeps_the_last_observed_time(spec_client):
     spec_client.clock.now = kst("10:15:30")
-    post(spec_client, SPEC_FIRST_REPORT)
+    post(spec_client, SPEC_FIRST_REPORT, url="/api/v1/rooms/IT4-101/seats/status")
     spec_client.clock.now = datetime(2026, 11, 24, 10, 15, 40, 105000, tzinfo=KST)
 
-    response = post(spec_client, SPEC_HEARTBEAT)
+    response = post(spec_client, SPEC_HEARTBEAT, url="/api/v1/rooms/IT4-101/seats/status")
 
     assert response.json()["updated_count"] == 0
     # 조회 결과는 첫 보고 직후와 같다. 마지막 확인 시각은 10:15:29, version도 1 그대로다.
@@ -131,43 +131,52 @@ def test_heartbeat_without_new_observation_keeps_the_last_observed_time(spec_cli
     assert spec_client.rooms.find("IT4-101").last_report_at == spec_client.clock.now
 
 
-# ── 네 좌석 방 ─────────────────────────────────────────────────────
+# ── 여섯 좌석 방 ───────────────────────────────────────────────────
 
 
 def room(client: TestClient) -> dict:
-    return client.get("/api/v1/rooms/IT4-101").json()
+    return client.get("/api/v1/rooms/IT4-108").json()
 
 
 def statuses(room_body: dict) -> dict[str, str]:
     return {s["seat_id"]: s["status"] for s in room_body["seats"]}
 
 
-FOUR_SEATS = report(
+SIX_SEATS = report(
     "2026-11-17T14:02:10+09:00",
     seat("A-01", "EMPTY", "2026-11-17T14:02:05+09:00"),
     seat("A-02", "OCCUPIED", "2026-11-17T14:02:08+09:00"),
+    seat("A-03", "EMPTY", "2026-11-17T14:02:07+09:00"),
     seat("B-01", "AWAY", "2026-11-17T14:02:09+09:00"),
     seat("B-02", "UNKNOWN", reason="OCCLUDED"),
+    seat("B-03", "OCCUPIED", "2026-11-17T14:02:09+09:00"),
 )
 
 
-def test_four_seat_report_produces_the_project_example_summary(client):
-    response = post(client, FOUR_SEATS)
+def test_six_seat_report_produces_the_project_example_summary(client):
+    response = post(client, SIX_SEATS)
 
     after = room(client)
-    assert response.json()["updated_count"] == 4
-    assert statuses(after) == {"A-01": "EMPTY", "A-02": "OCCUPIED", "B-01": "AWAY", "B-02": "UNKNOWN"}
-    assert (after["total_seats"], after["available_seats"], after["unknown_seats"]) == (4, 1, 1)
+    assert response.json()["updated_count"] == 6
+    assert statuses(after) == {
+        "A-01": "EMPTY",
+        "A-02": "OCCUPIED",
+        "A-03": "EMPTY",
+        "B-01": "AWAY",
+        "B-02": "UNKNOWN",
+        "B-03": "OCCUPIED",
+    }
+    assert (after["total_seats"], after["available_seats"], after["unknown_seats"]) == (6, 2, 1)
     assert after["congestion_level"] == "MODERATE"
     assert after["edge_online"] is True
     assert after["version"] == 1
 
 
 def test_same_report_twice_changes_nothing_the_second_time(client):
-    post(client, FOUR_SEATS)
+    post(client, SIX_SEATS)
     first = room(client)
 
-    response = post(client, FOUR_SEATS)
+    response = post(client, SIX_SEATS)
 
     assert response.status_code == 200
     assert response.json()["updated_count"] == 0
@@ -180,7 +189,7 @@ def test_seats_missing_from_the_report_stay_as_they_were(client):
     seats = {s["seat_id"]: s for s in room(client)["seats"]}
     assert response.json()["updated_count"] == 1
     assert seats["A-01"]["status"] == "EMPTY"
-    for seat_id in ("A-02", "B-01", "B-02"):
+    for seat_id in ("A-02", "A-03", "B-01", "B-02", "B-03"):
         assert seats[seat_id]["status"] == "UNKNOWN"
         assert seats[seat_id]["reason"] == "EDGE_OFFLINE"
         assert datetime.fromisoformat(seats[seat_id]["status_since"]) == STARTED_AT
@@ -242,10 +251,10 @@ def test_late_report_is_applied_and_the_next_report_corrects_it(client):
 def test_server_records_when_it_received_the_report(client, clock, rooms):
     clock.now = kst("14:00:01", day=17)
 
-    response = post(client, FOUR_SEATS)
+    response = post(client, SIX_SEATS)
 
     assert datetime.fromisoformat(response.json()["server_time"]) == clock.now
-    assert rooms.find("IT4-101").last_report_at == clock.now
+    assert rooms.find("IT4-108").last_report_at == clock.now
 
 
 # ── 반영하지 않는 보고 ──────────────────────────────────────────────
@@ -255,7 +264,7 @@ def test_server_records_when_it_received_the_report(client, clock, rooms):
 def test_missing_or_wrong_key_is_rejected(client, key):
     before = room(client)
 
-    response = post(client, FOUR_SEATS, key=key)
+    response = post(client, SIX_SEATS, key=key)
 
     assert response.status_code == 401
     assert room(client) == before
@@ -302,7 +311,7 @@ def test_invalid_report_is_rejected_without_partial_changes(client, rooms, body)
 
     assert response.status_code == 422
     assert room(client) == before
-    assert rooms.find("IT4-101").last_report_at is None
+    assert rooms.find("IT4-108").last_report_at is None
 
 
 # ── 방별 잠금 ──────────────────────────────────────────────────────
@@ -317,11 +326,11 @@ def test_report_waits_while_the_room_is_locked(rooms):
     body = StatusReport.model_validate(
         report("2026-11-17T14:00:00+09:00", seat("A-01", "EMPTY", "2026-11-17T13:59:55+09:00"))
     )
-    room_state = rooms.find("IT4-101")
+    room_state = rooms.find("IT4-108")
 
     async def scenario() -> None:
         async with room_state.lock:
-            task = asyncio.create_task(apply_status_report(rooms, "IT4-101", body, received_at=STARTED_AT, publish=publish_nowhere))
+            task = asyncio.create_task(apply_status_report(rooms, "IT4-108", body, received_at=STARTED_AT, publish=publish_nowhere))
             await asyncio.sleep(0)
             assert not task.done()
             assert room_state.seats["A-01"].status == SeatStatus.UNKNOWN
